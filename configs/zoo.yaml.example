@@ -1,0 +1,150 @@
+# Zoo 单体应用配置文件
+# 整合了所有微服务的配置到一个文件中
+
+# ==================== MySQL 数据库配置 ====================
+mysql:
+  host: 120.53.222.109:20001 # MySQL 机器 ip 和端口，默认 127.0.0.1:3306
+  username: root # MySQL 用户名(建议授权最小权限集)
+  password: mysql_P2H3Jh # MySQL 用户密码
+  database: zoo # 系统所用的数据库名
+  max-idle-connections: 100 # MySQL 最大空闲连接数，默认 100
+  max-open-connections: 100 # MySQL 最大打开的连接数，默认 100
+  max-connection-life-time: 10s # 空闲连接最大存活时间，默认 10s
+  log-level: 4 # GORM log level, 1: silent, 2:error, 3:warn, 4:info
+
+# ==================== Zoo 服务配置 ====================
+server:
+  mode: debug # server mode: release, debug, test，默认 release
+  healthz: true # 是否开启健康检查，如果开启会安装 /healthz 路由，默认 true
+  middlewares: recovery,logger # 加载的 gin 中间件列表，多个中间件，逗号(,)隔开（移除了 secure,nocache,cors 以避免影响静态文件的 MIME 类型）
+  max-ping-count: 3 # http 服务启动后，自检尝试次数，默认 3
+  port: 8599 # Zoo 服务端口（统一端口）
+  tenant-monitoring: false # 是否启用租户识别监控（按租户请求量、识别失败等）；也可用环境变量 ZOO_TENANT_MONITORING=1 启用
+
+# ==================== JWT 配置 ====================
+jwt:
+  realm: JWT # jwt 标识
+  key: dfVpOK8LZeJLZHYmHdb1VdyRrACKpqoo # 服务端密钥
+  timeout: 24h # token 过期时间(小时)
+  max-refresh: 24h # token 更新时间(小时)
+
+# ==================== Redis 配置 ====================
+redis:
+  host: 120.53.222.109 # redis 地址，默认 127.0.0.1:6379
+  port: 6379 # redis 端口，默认 6379
+  password: redis_f8DBkd # redis 密码
+  database: 0 # redis 数据库
+
+# ==================== 邮件配置 ====================
+mail:
+  service-type: "smtp" # 邮件服务类型：smtp 或 sendgrid
+  # Gmail配置（需要应用专用密码）
+  smtp-host: "smtp.gmail.com" # SMTP服务器地址
+  smtp-port: 587 # SMTP服务器端口
+  smtp-username: "3338078@gmail.com" # SMTP用户名
+  smtp-password: "tiyyfukeoebuseto" # SMTP密码（请替换为Gmail应用专用密码）
+  smtp-use-tls: true # 是否使用TLS
+  
+  sendgrid-api-key: "your_sendgrid_api_key_here" # SendGrid API密钥（保留向后兼容）
+  from-email: "3338078@gmail.com" # 发件人邮箱
+  from-name: "Zoo系统" # 发件人名称
+  verification-code-expire: 300 # 验证码过期时间（秒）
+  send-code-limit: 60 # 发送验证码间隔限制（秒）
+
+# ==================== 短信配置 ====================
+sms:
+  provider: "mock" # 短信提供商：aliyun/tencent/mock
+  access-key-id: "your-access-key-id" # 短信服务AccessKeyID
+  access-key-secret: "your-access-key-secret" # 短信服务AccessKeySecret
+  sign-name: "Zoo" # 短信签名
+  verification-template-id: "SMS_123456" # 验证码模板ID
+  send-code-limit: 60 # 发送间隔限制（秒）
+  code-expire: 300 # 验证码过期时间（秒）
+
+# ==================== 支付配置 ====================
+payment:
+  epay-pay-url: "http://localhost:8200/payment.html" # 支付页面地址
+  epay-api-url: "https://qzt2.issss.top" # 支付API地址
+  epay-create-order-uri: "/mapi.php" # 创建订单API路径
+  epay-query-status-uri: "/api.php?act=order&pid={pid}&key={key}&out_trade_no={out_trade_no}" # 查询订单API路径
+  epay-pid: "2" # 商户ID
+  epay-key: "KebHVZ4rVZ4g4Y44bMHj4h9B9vX99GCJ" # 商户密钥
+  epay-notify-url: "https://share.888773.xyz/trade/payments/notify" # 支付回调地址
+  epay-return-url: "http://localhost:8200/payment.html" # 支付成功跳转地址
+  epay-test-mode: false # 是否为测试模式
+
+# ==================== 推广配置 ====================
+referral:
+  link-prefix: "http://localhost:8200/zooweb/reg.html" # 推广链接前缀
+
+# ==================== 外部代理配置 ====================
+external-proxy:
+  chatgpt-enabled: true # 是否启用ChatGPT服务
+  chatgpt-base-url: "http://:8300" # ChatGPT服务基础地址
+  chatgpt-session-add-uri: "/adminapi/chatgpt/session/add"
+  chatgpt-session-update-uri: "/adminapi/chatgpt/session/update"
+  chatgpt-session-delete-uri: "/adminapi/chatgpt/session/delete"
+  chatgpt-session-info-uri: "/adminapi/chatgpt/session/info?id=%d"
+  chatgpt-session-search-uri: "/adminapi/chatgpt/session/page"
+  chatgpt-auth-header: "xyhelper"
+  conversation-add-uri: "/adminapi/chatgpt/conversations/add"
+  conversation-update-uri: "/adminapi/chatgpt/conversations/update"
+  conversation-delete-uri: "/adminapi/chatgpt/conversations/delete"
+  
+  timeout: 30 # 外部代理请求超时时间（秒）
+
+# ==================== 许可证验证配置（镜像售卖场景）====================
+# 说明：启用许可证验证后，应用会定期向许可证服务验证授权状态
+# 必需配置：server_url（许可证服务地址）和 public_key_pem（公钥）
+license:
+  enabled: true                    # 是否启用许可证验证
+  
+  # ========== 必需配置 ==========
+  # 许可证服务请求地址（你方部署的许可证服务URL）
+  server_url: "https://license.015555.xyz"  # 示例：https://license.yourcompany.com
+  
+  # 公钥PEM（RSA/ECDSA格式，用于验证服务端响应签名）
+  # 注意：这是你方提供的公钥，必须与服务端私钥配对。启用时请替换为实际公钥。
+  # 多行示例：public_key_pem: |
+  #   -----BEGIN PUBLIC KEY-----
+  #   MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
+  #   -----END PUBLIC KEY-----
+  public_key_pem: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEm0wdX2BnIUOlpopr3Vn/agOAb0xT
+    A7RjbVZ7ttLC9OUkYnMWbL8Z/Fn7eMz9Y3t3loZACbXaMAkKOcmLFdBpmw==
+    -----END PUBLIC KEY-----
+  
+  client_private_key_pem: |
+      -----BEGIN EC PRIVATE KEY-----
+      MHcCAQEEINB1bJqam0f3yvUKwyftFFtPj+YAdHqYDyLe6MYYyI0woAoGCCqGSM49
+      AwEHoUQDQgAEWUjDSBQ7E/oh505/WJBE8zGmzbvpiHWLakrXp6hAK4T8Ylmwfbwf
+      vCN8reKFzbRxWIiOC7KDJxNt9a+Iw/ibYg==
+      -----END EC PRIVATE KEY-----
+
+  
+  # ========== 可选配置 ==========
+  # 授权域名（买方提供的域名，用于标识授权实例）
+  # 也可通过环境变量 ZOO_LICENSE_DOMAIN 设置
+  domain: "test.example.com"                         # 示例：app.buyer.com
+  
+  # 验证间隔（秒），默认3600（1小时）
+  check_interval_seconds: 3600
+  
+  # 请求超时（秒），默认10
+  timeout_seconds: 10
+  
+  # 服务不可用时是否拒绝（true=拒绝，false=放行），默认true
+  fail_closed: true
+  
+  # 验证结果缓存时间（秒），默认300（5分钟）
+  cache_ttl_seconds: 300
+  
+  # 许可证服务证书指纹（SHA256，可选，用于证书绑定增强安全）
+  # 如果设置，将验证服务器证书指纹是否匹配
+  cert_fingerprint: ""               # 示例：abcd1234efgh5678...
+  
+  # 响应时间戳验证窗口（秒），默认300（5分钟）
+  # 用于验证服务端响应的时间戳是否在有效窗口内
+  timestamp_window_seconds: 300
+
