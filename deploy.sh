@@ -16,10 +16,20 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# 脚本所在目录（deploy/ 目录）
+# 脚本所在目录（源码时为 deploy/，分发包时为包根目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 项目根目录（deploy/ 的父目录）
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# 项目根目录：源码模式为项目根，分发包模式为包根（与 SCRIPT_DIR 相同）
+if [ -f "${SCRIPT_DIR}/Dockerfile" ] || [ -d "${SCRIPT_DIR}/../web" ]; then
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    PROJECT_ROOT="${SCRIPT_DIR}"
+fi
+
+# Docker Compose 命令（兼容 V1 与 V2）
+COMPOSE_CMD="docker compose"
+if ! docker compose version &> /dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+fi
 
 echo ""
 echo -e "${CYAN}============================================================${NC}"
@@ -31,38 +41,28 @@ echo ""
 check_directory() {
     echo -e "${BLUE}检查部署环境...${NC}"
     
-    # 检查必要文件
-    MISSING_FILES=()
-    
     if [ ! -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
-        MISSING_FILES+=("docker-compose.yml")
-    fi
-    
-    if [ ! -f "${SCRIPT_DIR}/Dockerfile" ]; then
-        MISSING_FILES+=("Dockerfile")
-    fi
-    
-    if [ ! -d "${PROJECT_ROOT}/web" ]; then
-        MISSING_FILES+=("web/")
-    fi
-    
-    if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-        echo -e "${RED}✗ 错误: 缺少必要文件${NC}"
+        echo -e "${RED}✗ 错误: 缺少 docker-compose.yml${NC}"
+        echo "   预期位置: ${SCRIPT_DIR}/docker-compose.yml"
         echo ""
-        echo "缺少的文件:"
-        for file in "${MISSING_FILES[@]}"; do
-            echo "  - ${file}"
-        done
-        echo ""
-        echo -e "${YELLOW}提示:${NC}"
-        echo "  1. 请先解压分发包:"
-        echo "     tar -xzf zoo-deploy-*.tar.gz"
-        echo "     cd zoo-deploy-*"
-        echo ""
-        echo "  2. 然后重新运行此脚本:"
-        echo "     ./deploy.sh"
+        echo -e "${YELLOW}提示:${NC} 请先解压分发包: tar -xzf zoo-deploy-*.tar.gz && cd zoo-deploy-*"
+        echo "   或从项目根目录运行: ./deploy/deploy.sh"
         echo ""
         exit 1
+    fi
+    
+    # 分发包模式（无 Dockerfile、无 web/）仅需 docker-compose.yml
+    if [ -f "${SCRIPT_DIR}/Dockerfile" ] || [ -d "${SCRIPT_DIR}/../web" ]; then
+        if [ ! -f "${SCRIPT_DIR}/Dockerfile" ]; then
+            echo -e "${RED}✗ 错误: 缺少 Dockerfile（源码模式）${NC}"
+            echo "   预期位置: ${SCRIPT_DIR}/Dockerfile"
+            exit 1
+        fi
+        if [ ! -d "${PROJECT_ROOT}/web" ]; then
+            echo -e "${RED}✗ 错误: 缺少 web/ 目录（源码模式）${NC}"
+            echo "   预期位置: ${PROJECT_ROOT}/web"
+            exit 1
+        fi
     fi
     
     echo -e "${GREEN}✓${NC} 部署环境检查通过"
@@ -119,9 +119,16 @@ check_config() {
     # 确保 configs 目录存在
     mkdir -p "${PROJECT_ROOT}/configs"
     
-    # 检查并创建 .env 文件
+    # 检查并创建 .env 文件（分发包根目录为 .env.example）
     if [ ! -f "${PROJECT_ROOT}/.env" ]; then
-        if [ -f "${SCRIPT_DIR}/env.example" ]; then
+        if [ -f "${PROJECT_ROOT}/.env.example" ]; then
+            echo -e "${YELLOW}⚠${NC} .env 文件不存在，从示例文件自动创建..."
+            cp "${PROJECT_ROOT}/.env.example" "${PROJECT_ROOT}/.env"
+            echo -e "${GREEN}✓${NC} .env 文件已创建"
+            echo ""
+            echo -e "${YELLOW}⚠ 提示:${NC} 如需修改 MySQL、Redis 等配置，请编辑 .env 文件"
+            echo ""
+        elif [ -f "${SCRIPT_DIR}/env.example" ]; then
             echo -e "${YELLOW}⚠${NC} .env 文件不存在，从示例文件自动创建..."
             cp "${SCRIPT_DIR}/env.example" "${PROJECT_ROOT}/.env"
             echo -e "${GREEN}✓${NC} .env 文件已创建"
@@ -129,7 +136,7 @@ check_config() {
             echo -e "${YELLOW}⚠ 提示:${NC} 如需修改 MySQL、Redis 等配置，请编辑 .env 文件"
             echo ""
         else
-            echo -e "${YELLOW}⚠${NC} env.example 文件不存在，跳过 .env 文件创建"
+            echo -e "${YELLOW}⚠${NC} .env.example / env.example 不存在，跳过 .env 创建"
         fi
     else
         echo -e "${GREEN}✓${NC} .env 文件存在"
@@ -201,13 +208,7 @@ deploy_service() {
     echo "启动服务（这可能需要几分钟）..."
     echo ""
     
-    if docker compose version &> /dev/null 2>&1; then
-        # Docker Compose V2
-        docker compose -f docker-compose.yml up -d --build
-    else
-        # Docker Compose V1
-        docker-compose -f docker-compose.yml up -d --build
-    fi
+    ${COMPOSE_CMD} -f docker-compose.yml up -d --build
     
     echo ""
     echo -e "${GREEN}✓${NC} 服务启动完成"
@@ -245,23 +246,19 @@ show_service_info() {
     echo -e "${GREEN}服务状态:${NC}"
     
     cd "${SCRIPT_DIR}"
-    if docker compose version &> /dev/null 2>&1; then
-        docker compose -f docker-compose.yml ps
-    else
-        docker-compose -f docker-compose.yml ps
-    fi
+    ${COMPOSE_CMD} -f docker-compose.yml ps
     
     echo ""
     echo -e "${GREEN}访问地址:${NC}"
     echo -e "  ${BLUE}用户端${NC}       → http://localhost:8599/"
-    echo -e "  ${BLUE}管理后台${NC}     → http://localhost:8599/web/admin/main/"
+    echo -e "  ${BLUE}管理后台${NC}     → http://localhost:8599/web/admin/"
     echo -e "  ${BLUE}健康检查${NC}     → http://localhost:8599/healthz"
     echo ""
-    echo -e "${YELLOW}常用命令:${NC}"
-    echo "  查看日志:   docker-compose logs -f"
-    echo "  停止服务:   docker-compose down"
-    echo "  重启服务:   docker-compose restart"
-    echo "  查看状态:   docker-compose ps"
+    echo -e "${YELLOW}常用命令:${NC} (在当前目录下执行)"
+    echo "  查看日志:   ${COMPOSE_CMD} -f docker-compose.yml logs -f"
+    echo "  停止服务:   ${COMPOSE_CMD} -f docker-compose.yml down"
+    echo "  重启服务:   ${COMPOSE_CMD} -f docker-compose.yml restart"
+    echo "  查看状态:   ${COMPOSE_CMD} -f docker-compose.yml ps"
     echo ""
     echo -e "${CYAN}============================================================${NC}"
     echo ""
