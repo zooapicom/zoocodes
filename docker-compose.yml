@@ -154,31 +154,10 @@ networks:
 # 3. JWT、邮件、支付、许可证等：
 #    - 一律在 configs/zoo.yaml 中配置（./deploy.sh 会从 configs/zoo.yaml.example 生成 configs/zoo.yaml 并提示编辑）
 #
-# 【数据库配置方式】
-#
-# 方式1：使用 Docker 中的 MySQL 和 Redis（推荐用于开发/测试）
-#   - 保持上方 mysql 和 redis 服务定义不变
-#   - 保持 zoo 服务的 depends_on 不变
-#   - 在 .env 中设置 MYSQL_*、REDIS_*（见上方）
-#
-# 方式2：使用外部 MySQL 和 Redis（推荐用于生产环境）
-#   - 注释掉上方的 mysql 和 redis 服务定义（整个服务块）
-#   - 注释掉 zoo 服务中的 depends_on 部分
-#   - 在 configs/zoo.yaml 中配置外部数据库连接信息
-#
-# 方式3：混合使用（MySQL 用 Docker，Redis 用外部，或反之）
-#   - 只注释掉不需要的服务（mysql 或 redis）及 depends_on 中对应项
-#   - Docker 侧用 .env，外部侧在 configs/zoo.yaml 中配置
-#
 # 【部署命令】
-# 
-# 1. 一键部署:
-#    执行: ./deploy.sh
-#    或: ./quick-install.sh
-# 
-# 2. 手动部署:
-#    docker-compose up -d
-# 
+# 1. 一键部署: 执行 ./deploy.sh
+# 2. 手动部署: docker-compose up -d
+#
 # 【访问地址】
 #   - 用户端:     http://localhost:8599/
 #   - 管理后台:   http://localhost:8599/web/admin/main/
@@ -189,4 +168,3 @@ networks:
 #   - Redis 数据: ./data/redis
 #   - 应用日志:   ./logs
 # =============================================================================
-

@@ -3,7 +3,6 @@
 # =============================================================================
 # Zoo 一键部署脚本（客户使用）
 # 用途：自动部署 Zoo 服务
-# 参考：https://github.com/xyhelper/chatgpt-mirror-server-deploy
 # =============================================================================
 
 set -e
@@ -21,11 +20,11 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# 脚本所在目录（源码时为 deploy/，分发包时为包根目录）
+# 脚本所在目录（分发包时为包根目录，源码时为 deploy/dist/）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 项目根目录：源码模式为项目根，分发包模式为包根（与 SCRIPT_DIR 相同）
-if [ -f "${SCRIPT_DIR}/Dockerfile" ] || [ -d "${SCRIPT_DIR}/../web" ]; then
-    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# 项目根目录：分发包模式为包根（与 SCRIPT_DIR 相同），源码模式为项目根（SCRIPT_DIR 的上两级）
+if [ -d "${SCRIPT_DIR}/../docker" ]; then
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 else
     PROJECT_ROOT="${SCRIPT_DIR}"
 fi
@@ -51,23 +50,9 @@ check_directory() {
         echo "   预期位置: ${SCRIPT_DIR}/docker-compose.yml"
         echo ""
         echo -e "${YELLOW}提示:${NC} 请先解压分发包: tar -xzf zoo-deploy-*.tar.gz && cd zoo-deploy-*"
-        echo "   或从项目根目录运行: ./deploy/deploy.sh"
+        echo "   或从项目根目录运行: ./deploy/dist/deploy.sh"
         echo ""
         exit 1
-    fi
-    
-    # 分发包模式（无 Dockerfile、无 web/）仅需 docker-compose.yml
-    if [ -f "${SCRIPT_DIR}/Dockerfile" ] || [ -d "${SCRIPT_DIR}/../web" ]; then
-        if [ ! -f "${SCRIPT_DIR}/Dockerfile" ]; then
-            echo -e "${RED}✗ 错误: 缺少 Dockerfile（源码模式）${NC}"
-            echo "   预期位置: ${SCRIPT_DIR}/Dockerfile"
-            exit 1
-        fi
-        if [ ! -d "${PROJECT_ROOT}/web" ]; then
-            echo -e "${RED}✗ 错误: 缺少 web/ 目录（源码模式）${NC}"
-            echo "   预期位置: ${PROJECT_ROOT}/web"
-            exit 1
-        fi
     fi
     
     echo -e "${GREEN}✓${NC} 部署环境检查通过"
@@ -97,7 +82,6 @@ check_docker() {
         exit 1
     fi
     
-    # 若 docker 不在 PATH 中，加入其所在目录以便后续 docker compose 可用
     if [ "$DOCKER_BIN" != "docker" ]; then
         export PATH="$(dirname "$DOCKER_BIN"):$PATH"
     fi
@@ -110,7 +94,6 @@ check_docker() {
         exit 1
     fi
     
-    # PATH 已可能被更新，重新检测 Docker Compose 命令（优先 v2: docker compose）
     if docker compose version > /dev/null 2>&1; then
         COMPOSE_CMD="docker compose"
     elif command -v docker-compose > /dev/null 2>&1; then
@@ -138,25 +121,23 @@ check_docker_compose() {
     echo ""
 }
 
-# 检查并创建配置文件
+# 检查并创建配置文件（compose 在 SCRIPT_DIR 运行，故 .env 与 configs 放在 SCRIPT_DIR）
 check_config() {
     echo -e "${BLUE}检查配置文件...${NC}"
     
-    # 确保 configs 目录存在
-    mkdir -p "${PROJECT_ROOT}/configs"
+    mkdir -p "${SCRIPT_DIR}/configs"
     
-    # 检查并创建 .env 文件（分发包根目录为 .env.example）
-    if [ ! -f "${PROJECT_ROOT}/.env" ]; then
-        if [ -f "${PROJECT_ROOT}/.env.example" ]; then
+    if [ ! -f "${SCRIPT_DIR}/.env" ]; then
+        if [ -f "${SCRIPT_DIR}/.env.example" ]; then
             echo -e "${YELLOW}⚠${NC} .env 文件不存在，从示例文件自动创建..."
-            cp "${PROJECT_ROOT}/.env.example" "${PROJECT_ROOT}/.env"
+            cp "${SCRIPT_DIR}/.env.example" "${SCRIPT_DIR}/.env"
             echo -e "${GREEN}✓${NC} .env 文件已创建"
             echo ""
             echo -e "${YELLOW}⚠ 提示:${NC} 如需修改 MySQL、Redis 等配置，请编辑 .env 文件"
             echo ""
         elif [ -f "${SCRIPT_DIR}/env.example" ]; then
             echo -e "${YELLOW}⚠${NC} .env 文件不存在，从示例文件自动创建..."
-            cp "${SCRIPT_DIR}/env.example" "${PROJECT_ROOT}/.env"
+            cp "${SCRIPT_DIR}/env.example" "${SCRIPT_DIR}/.env"
             echo -e "${GREEN}✓${NC} .env 文件已创建"
             echo ""
             echo -e "${YELLOW}⚠ 提示:${NC} 如需修改 MySQL、Redis 等配置，请编辑 .env 文件"
@@ -168,10 +149,10 @@ check_config() {
         echo -e "${GREEN}✓${NC} .env 文件存在"
     fi
     
-    if [ ! -f "${PROJECT_ROOT}/configs/zoo.yaml" ]; then
-        if [ -f "${PROJECT_ROOT}/configs/zoo.yaml.example" ]; then
+    if [ ! -f "${SCRIPT_DIR}/configs/zoo.yaml" ]; then
+        if [ -f "${SCRIPT_DIR}/configs/zoo.yaml.example" ]; then
             echo -e "${YELLOW}⚠${NC} 配置文件不存在，从示例文件自动创建..."
-            cp "${PROJECT_ROOT}/configs/zoo.yaml.example" "${PROJECT_ROOT}/configs/zoo.yaml"
+            cp "${SCRIPT_DIR}/configs/zoo.yaml.example" "${SCRIPT_DIR}/configs/zoo.yaml"
             echo -e "${GREEN}✓${NC} 配置文件已创建: configs/zoo.yaml"
             echo ""
             echo -e "${YELLOW}⚠ 重要:${NC} 请编辑 configs/zoo.yaml 配置以下信息:"
@@ -182,21 +163,27 @@ check_config() {
             echo ""
             read -p "是否现在编辑配置文件? (Y/n): " edit_config
             if [[ ! "$edit_config" =~ ^[Nn]$ ]]; then
-                # 尝试使用默认编辑器
                 if command -v nano > /dev/null 2>&1; then
-                    nano "${PROJECT_ROOT}/configs/zoo.yaml"
+                    nano "${SCRIPT_DIR}/configs/zoo.yaml"
                 elif command -v vim > /dev/null 2>&1; then
-                    vim "${PROJECT_ROOT}/configs/zoo.yaml"
+                    vim "${SCRIPT_DIR}/configs/zoo.yaml"
                 elif command -v vi > /dev/null 2>&1; then
-                    vi "${PROJECT_ROOT}/configs/zoo.yaml"
+                    vi "${SCRIPT_DIR}/configs/zoo.yaml"
                 else
-                    echo -e "${YELLOW}未找到编辑器，请手动编辑: ${PROJECT_ROOT}/configs/zoo.yaml${NC}"
+                    echo -e "${YELLOW}未找到编辑器，请手动编辑: ${SCRIPT_DIR}/configs/zoo.yaml${NC}"
                     read -p "按 Enter 继续..."
                 fi
             fi
+        elif [ -f "${PROJECT_ROOT}/configs/zoo.yaml.example" ]; then
+            echo -e "${YELLOW}⚠${NC} 配置文件不存在，从项目示例自动创建..."
+            cp "${PROJECT_ROOT}/configs/zoo.yaml.example" "${SCRIPT_DIR}/configs/zoo.yaml"
+            echo -e "${GREEN}✓${NC} 配置文件已创建: configs/zoo.yaml"
+            echo ""
+            echo -e "${YELLOW}⚠ 重要:${NC} 请编辑 configs/zoo.yaml 配置必要信息"
+            echo ""
         else
             echo -e "${RED}✗ 配置文件示例不存在${NC}"
-            echo "   预期位置: ${PROJECT_ROOT}/configs/zoo.yaml.example"
+            echo "   预期: ${SCRIPT_DIR}/configs/zoo.yaml.example 或 ${PROJECT_ROOT}/configs/zoo.yaml.example"
             exit 1
         fi
     else
@@ -210,8 +197,8 @@ check_config() {
 create_directories() {
     echo -e "${BLUE}创建必要目录...${NC}"
     
-    mkdir -p "${PROJECT_ROOT}/logs"
-    mkdir -p "${PROJECT_ROOT}/configs"
+    mkdir -p "${SCRIPT_DIR}/logs"
+    mkdir -p "${SCRIPT_DIR}/configs"
     
     echo -e "${GREEN}✓${NC} 目录创建完成"
     echo ""
@@ -224,13 +211,28 @@ deploy_service() {
     
     cd "${SCRIPT_DIR}"
     
-    # 检查 docker-compose.yml
     if [ ! -f "docker-compose.yml" ]; then
         echo -e "${RED}✗ docker-compose.yml 不存在${NC}"
         exit 1
     fi
     
-    # 拉取/构建镜像并启动
+    echo "请选择："
+    echo "  1) 拉取最新镜像（从 Docker Hub 获取最新版本后启动）"
+    echo "  2) 保持当前版本（使用本地已有镜像启动）"
+    echo ""
+    read -p "请选择 [1/2] (默认: 1): " pull_choice
+    pull_choice="${pull_choice:-1}"
+    if [ "$pull_choice" = "1" ]; then
+        echo ""
+        echo "拉取最新镜像..."
+        ${COMPOSE_CMD} -f docker-compose.yml pull
+        echo ""
+    else
+        echo ""
+        echo "使用本地已有镜像，跳过拉取"
+        echo ""
+    fi
+    
     echo "启动服务（这可能需要几分钟）..."
     echo ""
     
