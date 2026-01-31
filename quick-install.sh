@@ -77,6 +77,13 @@ download_files() {
     local base_url="${DEPLOY_BASE_URL%/}"
     
     for file in "${files[@]}"; do
+        # docker-compose.yml 已存在则不覆盖
+        if [ "$file" = "docker-compose.yml" ] && [ -f "docker-compose.yml" ]; then
+            echo -e "  ${YELLOW}⚠${NC} docker-compose.yml 已存在，保留现有配置（不覆盖）"
+            echo -e "  ${GREEN}✓${NC} ${file}"
+            continue
+        fi
+        
         echo -e "  ${CYAN}→${NC} 下载: ${file}"
         
         local url="${base_url}/${file}"
