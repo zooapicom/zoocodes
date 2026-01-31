@@ -26,9 +26,9 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-zoo}
       MYSQL_USER: ${MYSQL_USER:-zoo}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zoo123456}
-    ports:
-      # 可选：如果需要从主机访问，取消注释
-      # - "${MYSQL_PORT:-3306}:3306"
+    # 可选：如需从主机访问 MySQL，取消下面注释
+    # ports:
+    #   - "${MYSQL_PORT:-3306}:3306"
     networks:
       - zoo-network
     healthcheck:
@@ -58,9 +58,9 @@ services:
       - ./data/redis:/data
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-    ports:
-      # 可选：如果需要从主机访问，取消注释
-      # - "${REDIS_PORT:-6379}:6379"
+    # 可选：如需从主机访问 Redis，取消下面注释
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"
     networks:
       - zoo-network
     healthcheck:
