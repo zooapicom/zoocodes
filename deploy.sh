@@ -8,6 +8,11 @@
 
 set -e
 
+# 若用 sh 运行（如 sh deploy.sh），会报 Bad substitution 且 Docker 检测异常，改用 bash 执行
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,7 +32,7 @@ fi
 
 # Docker Compose 命令（兼容 V1 与 V2）
 COMPOSE_CMD="docker compose"
-if ! docker compose version &> /dev/null 2>&1; then
+if ! docker compose version > /dev/null 2>&1; then
     COMPOSE_CMD="docker-compose"
 fi
 
@@ -69,11 +74,20 @@ check_directory() {
     echo ""
 }
 
-# 检查 Docker
+# 检查 Docker（兼容 PATH 中无 docker 但已安装于 /usr/bin 等情况）
 check_docker() {
     echo -e "${BLUE}检查 Docker...${NC}"
     
-    if ! command -v docker &> /dev/null; then
+    DOCKER_BIN=""
+    if command -v docker > /dev/null 2>&1; then
+        DOCKER_BIN="docker"
+    elif [ -x /usr/bin/docker ]; then
+        DOCKER_BIN="/usr/bin/docker"
+    elif [ -x /usr/local/bin/docker ]; then
+        DOCKER_BIN="/usr/local/bin/docker"
+    fi
+    
+    if [ -z "$DOCKER_BIN" ]; then
         echo -e "${RED}✗ Docker 未安装${NC}"
         echo ""
         echo "请先安装 Docker:"
@@ -83,12 +97,24 @@ check_docker() {
         exit 1
     fi
     
-    if ! docker ps &> /dev/null 2>&1; then
+    # 若 docker 不在 PATH 中，加入其所在目录以便后续 docker compose 可用
+    if [ "$DOCKER_BIN" != "docker" ]; then
+        export PATH="$(dirname "$DOCKER_BIN"):$PATH"
+    fi
+    
+    if ! "$DOCKER_BIN" ps > /dev/null 2>&1; then
         echo -e "${RED}✗ Docker 服务未运行${NC}"
         echo ""
         echo "请启动 Docker 服务后重试"
         echo ""
         exit 1
+    fi
+    
+    # PATH 已可能被更新，重新检测 Docker Compose 命令（优先 v2: docker compose）
+    if docker compose version > /dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose > /dev/null 2>&1; then
+        COMPOSE_CMD="docker-compose"
     fi
     
     echo -e "${GREEN}✓${NC} Docker 已安装并运行"
@@ -99,7 +125,7 @@ check_docker() {
 check_docker_compose() {
     echo -e "${BLUE}检查 Docker Compose...${NC}"
     
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
+    if ! command -v docker-compose > /dev/null 2>&1 && ! docker compose version > /dev/null 2>&1; then
         echo -e "${RED}✗ Docker Compose 未安装${NC}"
         echo ""
         echo "Docker Desktop 通常已包含 Docker Compose"
@@ -157,11 +183,11 @@ check_config() {
             read -p "是否现在编辑配置文件? (Y/n): " edit_config
             if [[ ! "$edit_config" =~ ^[Nn]$ ]]; then
                 # 尝试使用默认编辑器
-                if command -v nano &> /dev/null; then
+                if command -v nano > /dev/null 2>&1; then
                     nano "${PROJECT_ROOT}/configs/zoo.yaml"
-                elif command -v vim &> /dev/null; then
+                elif command -v vim > /dev/null 2>&1; then
                     vim "${PROJECT_ROOT}/configs/zoo.yaml"
-                elif command -v vi &> /dev/null; then
+                elif command -v vi > /dev/null 2>&1; then
                     vi "${PROJECT_ROOT}/configs/zoo.yaml"
                 else
                     echo -e "${YELLOW}未找到编辑器，请手动编辑: ${PROJECT_ROOT}/configs/zoo.yaml${NC}"
