@@ -187,7 +187,7 @@ check_config() {
             exit 1
         fi
     else
-        echo -e "${GREEN}✓${NC} 配置文件存在"
+        echo -e "${GREEN}✓${NC} 配置文件存在，保留现有配置（不覆盖）"
     fi
     
     echo ""
