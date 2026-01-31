@@ -31,7 +31,7 @@ echo ""
 # =============================================================================
 # 默认从 GitHub 仓库下载（请根据实际情况修改）
 # 示例：
-#   GitHub: https://raw.githubusercontent.com/your-org/your-repo/main/deploy/dist
+#   GitHub: https://raw.githubusercontent.com/zooapicom/zoocodes/main/quick-install.sh
 #   自建服务器: https://your-domain.com/deploy
 DEPLOY_BASE_URL="${DEPLOY_BASE_URL:-https://raw.githubusercontent.com/zooapicom/zoocodes/main/deploy/dist/}"
 
@@ -67,16 +67,19 @@ download_files() {
     echo -e "${BLUE}正在下载部署文件...${NC}"
     echo ""
     
-    # 需要下载的文件列表
-    local files=("docker-compose.yml" ".env.example" "deploy.sh" "configs/zoo.yaml.example")
+    # 需要下载的文件列表（使用 env.example 而非 .env.example，避免 GitHub raw 对点文件 404）
+    local files=("docker-compose.yml" "env.example" "deploy.sh" "configs/zoo.yaml.example")
     
     # 确保 configs 目录存在
     mkdir -p configs
     
+    # 去掉下载地址末尾的斜杠，避免 URL 中出现双斜杠
+    local base_url="${DEPLOY_BASE_URL%/}"
+    
     for file in "${files[@]}"; do
         echo -e "  ${CYAN}→${NC} 下载: ${file}"
         
-        local url="${DEPLOY_BASE_URL}/${file}"
+        local url="${base_url}/${file}"
         
         # 下载文件，-f 参数确保404时报错，-S 显示错误
         if ! curl -sSL -f "${url}" -o "${file}"; then
@@ -99,12 +102,12 @@ download_files() {
         echo -e "  ${GREEN}✓${NC} ${file}"
     done
     
-    # 自动将 .env.example 复制为 .env（如果 .env 不存在）
-    if [ -f ".env.example" ]; then
+    # 自动将 env.example 复制为 .env（如果 .env 不存在）
+    if [ -f "env.example" ]; then
         if [ ! -f ".env" ]; then
             echo ""
-            echo -e "  ${CYAN}→${NC} 生成 .env 配置文件（从 .env.example）"
-            cp .env.example .env
+            echo -e "  ${CYAN}→${NC} 生成 .env 配置文件（从 env.example）"
+            cp env.example .env
             echo -e "  ${GREEN}✓${NC} .env"
         else
             echo ""
