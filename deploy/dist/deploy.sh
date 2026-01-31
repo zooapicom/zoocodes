@@ -163,7 +163,7 @@ check_config() {
             echo ""
             edit_config="n"
             if [ -t 0 ]; then
-                read -p "是否现在编辑配置文件? (Y/n): " edit_config
+                read -p "是否现在编辑配置文件? (Y/n): " edit_config || true
                 edit_config="${edit_config:-y}"
             fi
             if [[ ! "$edit_config" =~ ^[Nn]$ ]]; then
@@ -175,7 +175,7 @@ check_config() {
                     vi "${SCRIPT_DIR}/configs/zoo.yaml"
                 else
                     echo -e "${YELLOW}未找到编辑器，请手动编辑: ${SCRIPT_DIR}/configs/zoo.yaml${NC}"
-                    [ -t 0 ] && read -p "按 Enter 继续..."
+                    [ -t 0 ] && { read -p "按 Enter 继续..." _ || true; }
                 fi
             fi
         elif [ -f "${PROJECT_ROOT}/configs/zoo.yaml.example" ]; then
@@ -220,14 +220,14 @@ deploy_service() {
         exit 1
     fi
     
-    # 有 TTY 时交互选择，无 TTY 时（如 curl | bash）使用默认，避免 read 吃不到输入导致后续输入被当命令执行
+    # 无 TTY 时（如 curl | bash）不提示，直接用默认；有 TTY 时提示。read 加 || true 避免 set -e 在 EOF 时退出
     pull_choice="1"
     if [ -t 0 ]; then
         echo "请选择："
         echo "  1) 拉取最新镜像（从 Docker Hub 获取最新版本后启动）"
         echo "  2) 保持当前版本（使用本地已有镜像启动）"
         echo ""
-        read -p "请选择 [1/2] (默认: 1): " pull_choice
+        read -p "请选择 [1/2] (默认: 1): " pull_choice || true
         pull_choice="${pull_choice:-1}"
     else
         echo "非交互模式，使用默认：拉取最新镜像"
